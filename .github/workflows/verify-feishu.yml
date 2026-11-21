@@ -1,0 +1,54 @@
+name: Verify Feishu repair delivery
+on:
+  push:
+    branches: [verify/feishu-repair]
+    paths: [.github/workflows/verify-feishu.yml]
+permissions: {}
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send verified repair result to Feishu
+        env:
+          BOT_URL: ${{ secrets.HORIZON_WEBHOOK_URL }}
+          SIGNING_KEY: ${{ secrets.FEISHU_SIGNING_SECRET }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import hmac
+          import http.client
+          import json
+          import os
+          import re
+          import time
+          from urllib.parse import urlsplit
+
+          url = os.environ["BOT_URL"].strip()
+          if not url:
+              raise SystemExit("Missing repository secret HORIZON_WEBHOOK_URL")
+          target = urlsplit(url)
+          if target.scheme != "https" or target.netloc not in {"open.feishu.cn", "open.larksuite.com"} or not re.fullmatch(r"/open-apis/bot/v2/hook/[A-Za-z0-9-]+", target.path) or target.query or target.fragment:
+              raise SystemExit("HORIZON_WEBHOOK_URL must be a Feishu/Lark custom bot webhook")
+          message = (
+              "Horizon 修复验收｜GitHub Actions\n"
+              "仓库 Calego1125/Horizon · 修复提交 191df5d\n"
+              "依赖安装成功，flake8 通过，pytest 通过 1,056 项（32.29 秒）。\n"
+              "验证记录 https://github.com/Calego1125/Horizon/actions/runs/44955521506\n"
+              "修复详情 https://github.com/Calego1125/Horizon/pull/1"
+          )
+          payload = {"msg_type": "text", "content": {"text": message}}
+          key = os.environ["SIGNING_KEY"].strip()
+          if key:
+              ts = str(int(time.time()))
+              signature = hmac.new(f"{ts}\n{key}".encode(), digestmod=hashlib.sha256).digest()
+              payload.update(timestamp=ts, sign=base64.b64encode(signature).decode())
+          conn = http.client.HTTPSConnection(target.hostname, timeout=20)
+          conn.request("POST", target.path, body=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+          response = conn.getresponse()
+          data = json.loads(response.read())
+          code = data.get("code", data.get("StatusCode"))
+          if response.status != 200 or str(code) != "0":
+              raise SystemExit(f"Feishu rejected delivery (HTTP {response.status}, code {code})")
+          print("Feishu accepted the repair notification.")
+          PY
