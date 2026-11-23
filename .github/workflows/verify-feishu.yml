@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Send verified repair result to Feishu
         env:
-          BOT_URL: ${{ secrets.HORIZON_WEBHOOK_URL || vars.HORIZON_WEBHOOK_URL }}
+          BOT_URL: ${{ secrets.HORIZON_WEBHOOK_URL || vars.HORIZON_WEBHOOK_URL || secrets.FEISHU_WEBHOOK_URL || vars.FEISHU_WEBHOOK_URL || secrets.FEISHU_BOT_WEBHOOK || vars.FEISHU_BOT_WEBHOOK || secrets.FEISHU_BOT_URL || vars.FEISHU_BOT_URL || secrets.FEISHU_WEBHOOK || vars.FEISHU_WEBHOOK || secrets.FEISHU_BOT || vars.FEISHU_BOT || secrets.LARK_WEBHOOK_URL || vars.LARK_WEBHOOK_URL }}
           SIGNING_KEY: ${{ secrets.FEISHU_SIGNING_SECRET }}
         run: |
           python3 - <<'PY'
@@ -26,10 +26,10 @@ jobs:
 
           url = os.environ["BOT_URL"].strip()
           if not url:
-              raise SystemExit("HORIZON_WEBHOOK_URL was not available as a repository secret or variable")
+              raise SystemExit("No Feishu webhook was available. Checked the Horizon, Feishu, and Lark repository secret/variable names.")
           target = urlsplit(url)
           if target.scheme != "https" or target.netloc not in {"open.feishu.cn", "open.larksuite.com"} or not re.fullmatch(r"/open-apis/bot/v2/hook/[A-Za-z0-9-]+", target.path) or target.query or target.fragment:
-              raise SystemExit("HORIZON_WEBHOOK_URL must be a Feishu/Lark custom bot webhook")
+              raise SystemExit("The configured webhook is not a Feishu/Lark custom bot webhook.")
           message = (
               "Horizon 修复验收｜GitHub Actions\n"
               "仓库 Calego1125/Horizon · 修复提交 191df5d\n"
