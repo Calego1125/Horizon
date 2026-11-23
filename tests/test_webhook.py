@@ -1573,25 +1573,14 @@ class TestHTTPStatusHandling:
 
     def test_3xx_redirect_prints_warning(self):
         notifier = self._make_notifier()
-        mock_response = MagicMock()
-        mock_response.status_code = 301
-        mock_response.text = ""
-        mock_response.headers = {"location": "https://new-url.com"}
+        response = httpx.Response(301, headers={"location": "https://example.org/"})
+        notifier.console = MagicMock()
 
-        mock_console = MagicMock()
-
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.get = AsyncMock(return_value=mock_response)
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=False)
-            mock_client_cls.return_value = mock_client
-
-            notifier.console = mock_console
+        with patch("src.services.webhook.safe_request", new_callable=AsyncMock, return_value=response):
             _run_async(notifier.notify({"date": "2026-04-24"}))
 
-            printed = " ".join(str(c) for c in mock_console.print.call_args_list)
-            assert "redirect" in printed.lower()
+        printed = " ".join(str(c) for c in notifier.console.print.call_args_list)
+        assert "[yellow]Webhook received redirect (status=301)" in printed
         self._cleanup()
 
     def test_4xx_client_error_prints_warning(self):
